@@ -1,8 +1,10 @@
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth import AuthUser, get_current_user
 from app.db import get_db
 from app.entities import WorkflowEntity
 from app.models import (
@@ -56,10 +58,15 @@ def list_starter_projects() -> list[StarterProject]:
 
 
 @router.post("/workflows", response_model=WorkflowDiagram)
-def save_workflow(payload: WorkflowSaveRequest, db: Session = Depends(get_db)) -> WorkflowDiagram:
+def save_workflow(
+    payload: WorkflowSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> WorkflowDiagram:
     workflow_id = str(uuid4())
     workflow_row = WorkflowEntity(
         id=workflow_id,
+        owner_id=current_user.user_id,
         name=payload.name,
         nodes=[node.model_dump() for node in payload.nodes],
         edges=[edge.model_dump() for edge in payload.edges],
@@ -76,8 +83,17 @@ def save_workflow(payload: WorkflowSaveRequest, db: Session = Depends(get_db)) -
 
 
 @router.get("/workflows/{workflow_id}", response_model=WorkflowDiagram)
-def get_workflow(workflow_id: str, db: Session = Depends(get_db)) -> WorkflowDiagram:
-    workflow = db.get(WorkflowEntity, workflow_id)
+def get_workflow(
+    workflow_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> WorkflowDiagram:
+    workflow = db.execute(
+        select(WorkflowEntity).where(
+            WorkflowEntity.id == workflow_id,
+            WorkflowEntity.owner_id == current_user.user_id,
+        )
+    ).scalar_one_or_none()
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
     return WorkflowDiagram(

@@ -20,14 +20,17 @@ def upgrade() -> None:
     op.create_table(
         "workflows",
         sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("owner_id", sa.String(length=255), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("nodes", sa.JSON(), nullable=False),
         sa.Column("edges", sa.JSON(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_workflows_id"), "workflows", ["id"], unique=False)
+    op.create_index(op.f("ix_workflows_owner_id"), "workflows", ["owner_id"], unique=False)
 
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_workflows_owner_id"), table_name="workflows")
     op.drop_index(op.f("ix_workflows_id"), table_name="workflows")
     op.drop_table("workflows")

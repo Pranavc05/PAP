@@ -3,8 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router as api_router
 from app.config import get_settings
-from app.db import Base, engine
-from app import entities  # noqa: F401
 
 settings = get_settings()
 
@@ -13,11 +11,6 @@ app = FastAPI(
     version="0.1.0",
     description="MVP API for interactive process automation learning platform.",
 )
-
-
-@app.on_event("startup")
-def startup_event() -> None:
-    Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,

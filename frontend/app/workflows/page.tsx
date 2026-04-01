@@ -20,6 +20,8 @@ type WorkflowAnalysis = {
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const AUTH_MODE = process.env.NEXT_PUBLIC_AUTH_MODE ?? "dev";
+const DEV_USER_ID = process.env.NEXT_PUBLIC_DEV_USER_ID ?? "dev-user";
 const nodeTypes = ["Start", "Task", "Decision", "Approval", "API", "AI", "End"];
 
 const initialNodes: Node[] = [
@@ -45,6 +47,21 @@ export default function WorkflowsPage() {
   const [analysis, setAnalysis] = useState<WorkflowAnalysis | null>(null);
   const [status, setStatus] = useState("Ready");
   const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState("");
+
+  const getAuthHeaders = (): HeadersInit => {
+    if (authToken.trim()) {
+      return {
+        Authorization: `Bearer ${authToken.trim()}`
+      };
+    }
+    if (AUTH_MODE === "dev") {
+      return {
+        "X-Dev-User-Id": DEV_USER_ID
+      };
+    }
+    return {};
+  };
 
   const exportPayload = useMemo(
     () => ({
@@ -90,7 +107,7 @@ export default function WorkflowsPage() {
     setStatus("Saving workflow...");
     const response = await fetch(`${API_BASE}/workflows`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(exportPayload)
     });
     if (!response.ok) {
@@ -108,7 +125,9 @@ export default function WorkflowsPage() {
       return;
     }
     setStatus("Loading workflow...");
-    const response = await fetch(`${API_BASE}/workflows/${workflowId}`);
+    const response = await fetch(`${API_BASE}/workflows/${workflowId}`, {
+      headers: { ...getAuthHeaders() }
+    });
     if (!response.ok) {
       setStatus("Load failed");
       return;
@@ -175,6 +194,19 @@ export default function WorkflowsPage() {
           Analyze
         </button>
         <span style={{ alignSelf: "center", color: "#334155" }}>{status}</span>
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <label htmlFor="auth-token" style={{ display: "block", marginBottom: 6 }}>
+          Auth token (required for Supabase mode)
+        </label>
+        <input
+          id="auth-token"
+          type="password"
+          value={authToken}
+          onChange={(event) => setAuthToken(event.target.value)}
+          placeholder={AUTH_MODE === "dev" ? "Optional in dev mode" : "Paste access token"}
+          style={{ width: "100%", maxWidth: 520, padding: "8px 10px" }}
+        />
       </div>
 
       <div style={{ height: 460, border: "1px solid #cbd5e1", borderRadius: 8, background: "#fff" }}>

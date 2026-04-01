@@ -49,6 +49,20 @@ alembic upgrade head
 
 If you switch to Postgres, update `DATABASE_URL` in `backend/.env` before running migrations.
 
+## Authentication modes
+
+Backend auth is provider-driven through `AUTH_PROVIDER`:
+
+- `dev` (default): accepts `X-Dev-User-Id` header for local testing
+- `supabase`: verifies bearer JWT tokens using Supabase JWKS
+
+For frontend local dev:
+
+- keep `NEXT_PUBLIC_AUTH_MODE=dev` to test quickly
+- set `NEXT_PUBLIC_AUTH_MODE=supabase` and paste an access token in Workflow Lab to test protected routes
+
+If your SQLite DB was created before auth columns were added, delete `backend/process_automation.db` and run migrations again.
+
 ### Backend
 
 ```bash
