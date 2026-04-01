@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useAuth } from "../lib/auth";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -7,6 +10,8 @@ const navItems = [
 ];
 
 export function TopNav() {
+  const { isAuthenticated, mode, logout } = useAuth();
+
   return (
     <header
       style={{
@@ -32,6 +37,14 @@ export function TopNav() {
             {item.label}
           </Link>
         ))}
+        <span style={{ marginLeft: "auto", color: "#475569" }}>Auth: {mode}</span>
+        {!isAuthenticated ? (
+          <Link href="/login">Login</Link>
+        ) : (
+          <button onClick={logout} style={{ padding: "6px 10px" }}>
+            Logout
+          </button>
+        )}
       </nav>
     </header>
   );

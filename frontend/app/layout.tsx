@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { TopNav } from "../components/nav";
+import { AuthProvider } from "../lib/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,8 +17,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <TopNav />
-        <main style={{ maxWidth: 960, margin: "24px auto", padding: "0 24px" }}>{children}</main>
+        <AuthProvider>
+          <TopNav />
+          <main style={{ maxWidth: 960, margin: "24px auto", padding: "0 24px" }}>{children}</main>
+        </AuthProvider>
       </body>
     </html>
   );

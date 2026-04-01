@@ -61,6 +61,7 @@ For frontend local dev:
 
 - keep `NEXT_PUBLIC_AUTH_MODE=dev` to test quickly
 - set `NEXT_PUBLIC_AUTH_MODE=supabase` or `NEXT_PUBLIC_AUTH_MODE=oidc` and paste an access token in Workflow Lab to test protected routes
+- use `/login` to create/update your local frontend session state
 
 For `oidc`, set these backend env values:
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import ReactFlow, {
   Background,
   Controls,
@@ -11,6 +12,7 @@ import ReactFlow, {
 } from "reactflow";
 import type { Connection, Edge, Node } from "reactflow";
 import "reactflow/dist/style.css";
+import { useAuth } from "../../lib/auth";
 
 type WorkflowAnalysis = {
   bottleneck_score: number;
@@ -20,8 +22,6 @@ type WorkflowAnalysis = {
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
-const AUTH_MODE = process.env.NEXT_PUBLIC_AUTH_MODE ?? "dev";
-const DEV_USER_ID = process.env.NEXT_PUBLIC_DEV_USER_ID ?? "dev-user";
 const nodeTypes = ["Start", "Task", "Decision", "Approval", "API", "AI", "End"];
 
 const initialNodes: Node[] = [
@@ -42,26 +42,12 @@ function mapLabelToNodeType(label: string): string {
 }
 
 export default function WorkflowsPage() {
+  const { authHeaders, isAuthenticated, mode } = useAuth();
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [analysis, setAnalysis] = useState<WorkflowAnalysis | null>(null);
   const [status, setStatus] = useState("Ready");
   const [workflowId, setWorkflowId] = useState<string | null>(null);
-  const [authToken, setAuthToken] = useState("");
-
-  const getAuthHeaders = (): HeadersInit => {
-    if (authToken.trim()) {
-      return {
-        Authorization: `Bearer ${authToken.trim()}`
-      };
-    }
-    if (AUTH_MODE === "dev") {
-      return {
-        "X-Dev-User-Id": DEV_USER_ID
-      };
-    }
-    return {};
-  };
 
   const exportPayload = useMemo(
     () => ({
@@ -107,7 +93,7 @@ export default function WorkflowsPage() {
     setStatus("Saving workflow...");
     const response = await fetch(`${API_BASE}/workflows`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(exportPayload)
     });
     if (!response.ok) {
@@ -126,7 +112,7 @@ export default function WorkflowsPage() {
     }
     setStatus("Loading workflow...");
     const response = await fetch(`${API_BASE}/workflows/${workflowId}`, {
-      headers: { ...getAuthHeaders() }
+      headers: { ...authHeaders }
     });
     if (!response.ok) {
       setStatus("Load failed");
@@ -184,10 +170,10 @@ export default function WorkflowsPage() {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <button onClick={saveWorkflow} style={{ padding: "8px 12px" }}>
+        <button onClick={saveWorkflow} style={{ padding: "8px 12px" }} disabled={!isAuthenticated}>
           Save
         </button>
-        <button onClick={loadWorkflow} style={{ padding: "8px 12px" }}>
+        <button onClick={loadWorkflow} style={{ padding: "8px 12px" }} disabled={!isAuthenticated}>
           Load
         </button>
         <button onClick={analyzeWorkflow} style={{ padding: "8px 12px" }}>
@@ -195,19 +181,12 @@ export default function WorkflowsPage() {
         </button>
         <span style={{ alignSelf: "center", color: "#334155" }}>{status}</span>
       </div>
-      <div style={{ marginBottom: 12 }}>
-        <label htmlFor="auth-token" style={{ display: "block", marginBottom: 6 }}>
-          Auth token (required for Supabase/OIDC mode)
-        </label>
-        <input
-          id="auth-token"
-          type="password"
-          value={authToken}
-          onChange={(event) => setAuthToken(event.target.value)}
-          placeholder={AUTH_MODE === "dev" ? "Optional in dev mode" : "Paste bearer access token"}
-          style={{ width: "100%", maxWidth: 520, padding: "8px 10px" }}
-        />
-      </div>
+      {!isAuthenticated ? (
+        <p style={{ marginBottom: 12, color: "#b45309" }}>
+          Session not connected for <code>{mode}</code> mode. <Link href="/login">Login here</Link> to
+          enable save/load.
+        </p>
+      ) : null}
 
       <div style={{ height: 460, border: "1px solid #cbd5e1", borderRadius: 8, background: "#fff" }}>
         <ReactFlow
