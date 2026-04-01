@@ -18,6 +18,24 @@ This repository contains the initial MVP scaffold for an interactive learning pl
 
 ## Local development
 
+## Environment setup
+
+### Backend env
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+### Frontend env
+
+```bash
+cd frontend
+cp .env.example .env.local
+```
+
+You can keep defaults for now. As we add database/auth/AI integrations, fill the relevant keys.
+
 ### Backend
 
 ```bash
