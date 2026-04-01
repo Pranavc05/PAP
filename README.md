@@ -36,6 +36,18 @@ cp .env.example .env.local
 
 You can keep defaults for now. As we add database/auth/AI integrations, fill the relevant keys.
 
+### AI tutor (Azure OpenAI)
+
+Set these values in `backend/.env` to enable real LLM responses:
+
+- `AI_PROVIDER=azure_openai`
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_OPENAI_ENDPOINT`
+- `AZURE_OPENAI_API_VERSION`
+- `AZURE_OPENAI_DEPLOYMENT`
+
+If these values are missing, the tutor falls back to deterministic local responses so the app still works.
+
 ## Database and migrations
 
 The backend now persists workflows in SQL (SQLite by default for local development).
