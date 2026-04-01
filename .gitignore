@@ -8,8 +8,9 @@ frontend/.env.local
 
 # Python
 backend/.venv
-backend/__pycache__/
 backend/.pytest_cache
+**/__pycache__/
+*.pyc
 backend/.env
 backend/.env.*
 
