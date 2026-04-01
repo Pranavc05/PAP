@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
     frontend_origin: str = "http://localhost:3000"
 
-    database_url: str = ""
+    database_url: str = "sqlite:///./process_automation.db"
     redis_url: str = ""
     openai_api_key: str = ""
 

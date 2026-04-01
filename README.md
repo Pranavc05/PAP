@@ -36,6 +36,19 @@ cp .env.example .env.local
 
 You can keep defaults for now. As we add database/auth/AI integrations, fill the relevant keys.
 
+## Database and migrations
+
+The backend now persists workflows in SQL (SQLite by default for local development).
+
+Run migrations:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+If you switch to Postgres, update `DATABASE_URL` in `backend/.env` before running migrations.
+
 ### Backend
 
 ```bash

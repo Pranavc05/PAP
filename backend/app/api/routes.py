@@ -1,7 +1,10 @@
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
+from app.db import get_db
+from app.entities import WorkflowEntity
 from app.models import (
     LevelOverview,
     StarterProject,
@@ -11,7 +14,6 @@ from app.models import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["mvp"])
-WORKFLOW_STORE: dict[str, WorkflowDiagram] = {}
 
 
 @router.get("/levels", response_model=list[LevelOverview])
@@ -54,23 +56,36 @@ def list_starter_projects() -> list[StarterProject]:
 
 
 @router.post("/workflows", response_model=WorkflowDiagram)
-def save_workflow(payload: WorkflowSaveRequest) -> WorkflowDiagram:
-    workflow = WorkflowDiagram(
-        id=str(uuid4()),
+def save_workflow(payload: WorkflowSaveRequest, db: Session = Depends(get_db)) -> WorkflowDiagram:
+    workflow_id = str(uuid4())
+    workflow_row = WorkflowEntity(
+        id=workflow_id,
         name=payload.name,
+        nodes=[node.model_dump() for node in payload.nodes],
+        edges=[edge.model_dump() for edge in payload.edges],
+    )
+    db.add(workflow_row)
+    db.commit()
+    db.refresh(workflow_row)
+    return WorkflowDiagram(
+        id=workflow_row.id,
+        name=workflow_row.name,
         nodes=payload.nodes,
         edges=payload.edges,
     )
-    WORKFLOW_STORE[workflow.id] = workflow
-    return workflow
 
 
 @router.get("/workflows/{workflow_id}", response_model=WorkflowDiagram)
-def get_workflow(workflow_id: str) -> WorkflowDiagram:
-    workflow = WORKFLOW_STORE.get(workflow_id)
+def get_workflow(workflow_id: str, db: Session = Depends(get_db)) -> WorkflowDiagram:
+    workflow = db.get(WorkflowEntity, workflow_id)
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
-    return workflow
+    return WorkflowDiagram(
+        id=workflow.id,
+        name=workflow.name,
+        nodes=workflow.nodes,
+        edges=workflow.edges,
+    )
 
 
 @router.post("/workflows/analyze", response_model=WorkflowAnalysis)
