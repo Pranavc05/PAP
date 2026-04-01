@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-type AuthMode = "dev" | "supabase" | "oidc";
+type AuthMode = "dev" | "oidc";
 
 type AuthContextValue = {
   mode: AuthMode;

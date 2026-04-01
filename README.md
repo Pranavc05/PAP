@@ -66,13 +66,12 @@ If you switch to Postgres, update `DATABASE_URL` in `backend/.env` before runnin
 Backend auth is provider-driven through `AUTH_PROVIDER`:
 
 - `dev` (default): accepts `X-Dev-User-Id` header for local testing
-- `supabase`: verifies bearer JWT tokens using Supabase JWKS
 - `oidc`: verifies bearer JWT tokens using generic OIDC JWKS config (AWS/GCP/Azure compatible)
 
 For frontend local dev:
 
 - keep `NEXT_PUBLIC_AUTH_MODE=dev` to test quickly
-- set `NEXT_PUBLIC_AUTH_MODE=supabase` or `NEXT_PUBLIC_AUTH_MODE=oidc` and paste an access token in Workflow Lab to test protected routes
+- set `NEXT_PUBLIC_AUTH_MODE=oidc` and paste an access token in login to test protected routes
 - use `/login` to create/update your local frontend session state
 
 For `oidc`, set these backend env values:

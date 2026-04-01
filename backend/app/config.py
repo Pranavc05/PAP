@@ -10,17 +10,11 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./process_automation.db"
     redis_url: str = ""
-    openai_api_key: str = ""
     ai_provider: str = "azure_openai"
     azure_openai_api_key: str = ""
     azure_openai_endpoint: str = ""
     azure_openai_api_version: str = "2024-08-01-preview"
     azure_openai_deployment: str = ""
-
-    supabase_url: str = ""
-    supabase_anon_key: str = ""
-    supabase_service_role_key: str = ""
-    supabase_jwks_url: str = ""
 
     auth_provider: str = "dev"
     auth_jwks_url: str = ""
