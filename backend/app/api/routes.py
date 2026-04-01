@@ -7,7 +7,15 @@ from sqlalchemy.orm import Session
 
 from app.auth import AuthUser, get_current_user
 from app.db import get_db
-from app.entities import CourseEntity, LessonEntity, ModuleEntity, UserLessonProgressEntity, WorkflowEntity
+from app.entities import (
+    CourseEntity,
+    LessonEntity,
+    ModuleEntity,
+    QuizAttemptEntity,
+    QuizQuestionEntity,
+    UserLessonProgressEntity,
+    WorkflowEntity,
+)
 from app.models import (
     CourseDetail,
     CourseOverview,
@@ -18,6 +26,13 @@ from app.models import (
     LessonProgressItem,
     LevelOverview,
     ModuleOverview,
+    QuizAttemptSummary,
+    QuizAnswerSubmission,
+    QuizOption,
+    QuizQuestionPublic,
+    QuizResultItem,
+    QuizSubmitRequest,
+    QuizSubmitResponse,
     StarterProject,
     WorkflowAnalysis,
     WorkflowDiagram,
@@ -258,6 +273,119 @@ def get_course_progress(
         completion_percentage=round(percentage, 2),
         items=items,
     )
+
+
+@router.get("/lessons/{lesson_id}/quiz", response_model=list[QuizQuestionPublic])
+def get_lesson_quiz(lesson_id: str, db: Session = Depends(get_db)) -> list[QuizQuestionPublic]:
+    lesson = db.get(LessonEntity, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    question_rows = db.execute(
+        select(QuizQuestionEntity)
+        .where(QuizQuestionEntity.lesson_id == lesson_id)
+        .order_by(QuizQuestionEntity.position.asc())
+    ).scalars().all()
+
+    return [
+        QuizQuestionPublic(
+            id=question.id,
+            prompt=question.prompt,
+            options=[QuizOption(**option) for option in question.options],
+            position=question.position,
+        )
+        for question in question_rows
+    ]
+
+
+@router.post("/lessons/{lesson_id}/quiz/submit", response_model=QuizSubmitResponse)
+def submit_quiz_attempt(
+    lesson_id: str,
+    payload: QuizSubmitRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> QuizSubmitResponse:
+    lesson = db.get(LessonEntity, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    question_rows = db.execute(
+        select(QuizQuestionEntity)
+        .where(QuizQuestionEntity.lesson_id == lesson_id)
+        .order_by(QuizQuestionEntity.position.asc())
+    ).scalars().all()
+    if not question_rows:
+        raise HTTPException(status_code=404, detail="No quiz questions found for lesson")
+
+    answer_map = {answer.question_id: answer.selected_option_key for answer in payload.answers}
+    results: list[QuizResultItem] = []
+    correct_count = 0
+
+    for question in question_rows:
+        selected = answer_map.get(question.id)
+        is_correct = selected == question.correct_option_key
+        if is_correct:
+            correct_count += 1
+        results.append(
+            QuizResultItem(
+                question_id=question.id,
+                selected_option_key=selected,
+                correct_option_key=question.correct_option_key,
+                is_correct=is_correct,
+                explanation=question.explanation,
+            )
+        )
+
+    total_questions = len(question_rows)
+    percentage = (correct_count / total_questions * 100) if total_questions else 0.0
+    attempt_id = str(uuid4())
+
+    db.add(
+        QuizAttemptEntity(
+            id=attempt_id,
+            user_id=current_user.user_id,
+            lesson_id=lesson_id,
+            score=correct_count,
+            total_questions=total_questions,
+            answers=[QuizAnswerSubmission(question_id=item.question_id, selected_option_key=item.selected_option_key or "").model_dump() for item in results],
+        )
+    )
+    db.commit()
+
+    return QuizSubmitResponse(
+        attempt_id=attempt_id,
+        score=correct_count,
+        total_questions=total_questions,
+        percentage=round(percentage, 2),
+        results=results,
+    )
+
+
+@router.get("/lessons/{lesson_id}/quiz/attempts", response_model=list[QuizAttemptSummary])
+def get_quiz_attempts(
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> list[QuizAttemptSummary]:
+    attempt_rows = db.execute(
+        select(QuizAttemptEntity)
+        .where(
+            QuizAttemptEntity.lesson_id == lesson_id,
+            QuizAttemptEntity.user_id == current_user.user_id,
+        )
+        .order_by(QuizAttemptEntity.submitted_at.desc())
+    ).scalars().all()
+
+    return [
+        QuizAttemptSummary(
+            attempt_id=attempt.id,
+            score=attempt.score,
+            total_questions=attempt.total_questions,
+            percentage=round((attempt.score / attempt.total_questions * 100) if attempt.total_questions else 0.0, 2),
+            submitted_at=attempt.submitted_at.isoformat(),
+        )
+        for attempt in attempt_rows
+    ]
 
 
 @router.post("/workflows", response_model=WorkflowDiagram)

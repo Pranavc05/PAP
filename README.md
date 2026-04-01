@@ -102,6 +102,9 @@ Frontend should run on `http://localhost:3000` and call backend APIs at `http://
 - `GET /api/v1/lessons/{lesson_id}`
 - `POST /api/v1/lessons/{lesson_id}/complete`
 - `GET /api/v1/courses/{course_id}/progress`
+- `GET /api/v1/lessons/{lesson_id}/quiz`
+- `POST /api/v1/lessons/{lesson_id}/quiz/submit`
+- `GET /api/v1/lessons/{lesson_id}/quiz/attempts`
 
 ## Repository structure
 

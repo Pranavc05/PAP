@@ -117,3 +117,48 @@ class CourseProgressResponse(BaseModel):
     completed_lessons: int
     completion_percentage: float
     items: list[LessonProgressItem]
+
+
+class QuizOption(BaseModel):
+    key: str
+    text: str
+
+
+class QuizQuestionPublic(BaseModel):
+    id: str
+    prompt: str
+    options: list[QuizOption]
+    position: int
+
+
+class QuizAnswerSubmission(BaseModel):
+    question_id: str
+    selected_option_key: str
+
+
+class QuizSubmitRequest(BaseModel):
+    answers: list[QuizAnswerSubmission]
+
+
+class QuizResultItem(BaseModel):
+    question_id: str
+    selected_option_key: str | None
+    correct_option_key: str
+    is_correct: bool
+    explanation: str
+
+
+class QuizSubmitResponse(BaseModel):
+    attempt_id: str
+    score: int
+    total_questions: int
+    percentage: float
+    results: list[QuizResultItem]
+
+
+class QuizAttemptSummary(BaseModel):
+    attempt_id: str
+    score: int
+    total_questions: int
+    percentage: float
+    submitted_at: str

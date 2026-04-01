@@ -60,3 +60,27 @@ class UserLessonProgressEntity(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+
+class QuizQuestionEntity(Base):
+    __tablename__ = "quiz_questions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    options: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
+    correct_option_key: Mapped[str] = mapped_column(String(32), nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class QuizAttemptEntity(Base):
+    __tablename__ = "quiz_attempts"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_questions: Mapped[int] = mapped_column(Integer, nullable=False)
+    answers: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
