@@ -13,6 +13,8 @@ from app.entities import (
     ModuleEntity,
     QuizAttemptEntity,
     QuizQuestionEntity,
+    TutorMessageEntity,
+    TutorSessionEntity,
     UserLessonProgressEntity,
     WorkflowEntity,
 )
@@ -34,10 +36,18 @@ from app.models import (
     QuizSubmitRequest,
     QuizSubmitResponse,
     StarterProject,
+    TutorGenerateRequest,
+    TutorMessage,
+    TutorMessageRequest,
+    TutorMessageResponse,
+    TutorSessionCreateRequest,
+    TutorSessionDetail,
+    TutorSessionOverview,
     WorkflowAnalysis,
     WorkflowDiagram,
     WorkflowSaveRequest,
 )
+from app.tutor_engine import generate_tutor_response
 
 router = APIRouter(prefix="/api/v1", tags=["mvp"])
 
@@ -386,6 +396,173 @@ def get_quiz_attempts(
         )
         for attempt in attempt_rows
     ]
+
+
+@router.post("/tutor/sessions", response_model=TutorSessionOverview)
+def create_tutor_session(
+    payload: TutorSessionCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> TutorSessionOverview:
+    if payload.lesson_id:
+        lesson = db.get(LessonEntity, payload.lesson_id)
+        if lesson is None:
+            raise HTTPException(status_code=404, detail="Lesson not found")
+
+    session_id = str(uuid4())
+    session = TutorSessionEntity(
+        id=session_id,
+        user_id=current_user.user_id,
+        lesson_id=payload.lesson_id,
+        title=payload.title or "AI Tutor Session",
+        mode=payload.mode,
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return TutorSessionOverview(
+        id=session.id,
+        lesson_id=session.lesson_id,
+        title=session.title,
+        mode=session.mode,
+        created_at=session.created_at.isoformat(),
+        updated_at=session.updated_at.isoformat(),
+    )
+
+
+@router.get("/tutor/sessions", response_model=list[TutorSessionOverview])
+def list_tutor_sessions(
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> list[TutorSessionOverview]:
+    sessions = db.execute(
+        select(TutorSessionEntity)
+        .where(TutorSessionEntity.user_id == current_user.user_id)
+        .order_by(TutorSessionEntity.updated_at.desc())
+    ).scalars().all()
+    return [
+        TutorSessionOverview(
+            id=session.id,
+            lesson_id=session.lesson_id,
+            title=session.title,
+            mode=session.mode,
+            created_at=session.created_at.isoformat(),
+            updated_at=session.updated_at.isoformat(),
+        )
+        for session in sessions
+    ]
+
+
+@router.get("/tutor/sessions/{session_id}", response_model=TutorSessionDetail)
+def get_tutor_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> TutorSessionDetail:
+    session = db.execute(
+        select(TutorSessionEntity).where(
+            TutorSessionEntity.id == session_id,
+            TutorSessionEntity.user_id == current_user.user_id,
+        )
+    ).scalar_one_or_none()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Tutor session not found")
+
+    messages = db.execute(
+        select(TutorMessageEntity)
+        .where(TutorMessageEntity.session_id == session_id)
+        .order_by(TutorMessageEntity.created_at.asc())
+    ).scalars().all()
+    return TutorSessionDetail(
+        session=TutorSessionOverview(
+            id=session.id,
+            lesson_id=session.lesson_id,
+            title=session.title,
+            mode=session.mode,
+            created_at=session.created_at.isoformat(),
+            updated_at=session.updated_at.isoformat(),
+        ),
+        messages=[
+            TutorMessage(
+                id=message.id,
+                role=message.role,
+                content=message.content,
+                hint_level=message.hint_level,
+                created_at=message.created_at.isoformat(),
+            )
+            for message in messages
+        ],
+    )
+
+
+@router.post("/tutor/sessions/{session_id}/messages", response_model=TutorMessageResponse)
+def send_tutor_message(
+    session_id: str,
+    payload: TutorMessageRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> TutorMessageResponse:
+    session = db.execute(
+        select(TutorSessionEntity).where(
+            TutorSessionEntity.id == session_id,
+            TutorSessionEntity.user_id == current_user.user_id,
+        )
+    ).scalar_one_or_none()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Tutor session not found")
+
+    lesson_context = None
+    if session.lesson_id:
+        lesson = db.get(LessonEntity, session.lesson_id)
+        lesson_context = lesson.objective if lesson else None
+
+    generated = generate_tutor_response(
+        TutorGenerateRequest(
+            user_message=payload.content,
+            lesson_context=lesson_context,
+            mode=payload.mode,
+            hint_level=payload.hint_level,
+        )
+    )
+
+    user_message_entity = TutorMessageEntity(
+        id=str(uuid4()),
+        session_id=session.id,
+        role="user",
+        content=payload.content,
+        hint_level=payload.hint_level if payload.mode == "hint" else None,
+    )
+    assistant_message_entity = TutorMessageEntity(
+        id=str(uuid4()),
+        session_id=session.id,
+        role="assistant",
+        content=generated,
+        hint_level=payload.hint_level if payload.mode == "hint" else None,
+    )
+    session.mode = payload.mode
+    db.add(user_message_entity)
+    db.add(assistant_message_entity)
+    db.commit()
+    db.refresh(session)
+    db.refresh(user_message_entity)
+    db.refresh(assistant_message_entity)
+
+    return TutorMessageResponse(
+        user_message=TutorMessage(
+            id=user_message_entity.id,
+            role=user_message_entity.role,
+            content=user_message_entity.content,
+            hint_level=user_message_entity.hint_level,
+            created_at=user_message_entity.created_at.isoformat(),
+        ),
+        assistant_message=TutorMessage(
+            id=assistant_message_entity.id,
+            role=assistant_message_entity.role,
+            content=assistant_message_entity.content,
+            hint_level=assistant_message_entity.hint_level,
+            created_at=assistant_message_entity.created_at.isoformat(),
+        ),
+    )
 
 
 @router.post("/workflows", response_model=WorkflowDiagram)

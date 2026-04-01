@@ -6,7 +6,8 @@ import { useAuth } from "../lib/auth";
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/learn", label: "Learning Path" },
-  { href: "/workflows", label: "Workflow Lab" }
+  { href: "/workflows", label: "Workflow Lab" },
+  { href: "/tutor", label: "AI Tutor" }
 ];
 
 export function TopNav() {

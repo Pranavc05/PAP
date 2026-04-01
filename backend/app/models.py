@@ -162,3 +162,49 @@ class QuizAttemptSummary(BaseModel):
     total_questions: int
     percentage: float
     submitted_at: str
+
+
+class TutorSessionCreateRequest(BaseModel):
+    lesson_id: str | None = None
+    title: str | None = None
+    mode: str = "socratic"
+
+
+class TutorSessionOverview(BaseModel):
+    id: str
+    lesson_id: str | None
+    title: str
+    mode: str
+    created_at: str
+    updated_at: str
+
+
+class TutorMessage(BaseModel):
+    id: str
+    role: str
+    content: str
+    hint_level: int | None
+    created_at: str
+
+
+class TutorSessionDetail(BaseModel):
+    session: TutorSessionOverview
+    messages: list[TutorMessage]
+
+
+class TutorMessageRequest(BaseModel):
+    content: str
+    mode: str = "socratic"
+    hint_level: int = 1
+
+
+class TutorMessageResponse(BaseModel):
+    user_message: TutorMessage
+    assistant_message: TutorMessage
+
+
+class TutorGenerateRequest(BaseModel):
+    user_message: str
+    lesson_context: str | None = None
+    mode: str = "socratic"
+    hint_level: int = 1
