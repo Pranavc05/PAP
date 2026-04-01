@@ -197,14 +197,14 @@ export default function WorkflowsPage() {
       </div>
       <div style={{ marginBottom: 12 }}>
         <label htmlFor="auth-token" style={{ display: "block", marginBottom: 6 }}>
-          Auth token (required for Supabase mode)
+          Auth token (required for Supabase/OIDC mode)
         </label>
         <input
           id="auth-token"
           type="password"
           value={authToken}
           onChange={(event) => setAuthToken(event.target.value)}
-          placeholder={AUTH_MODE === "dev" ? "Optional in dev mode" : "Paste access token"}
+          placeholder={AUTH_MODE === "dev" ? "Optional in dev mode" : "Paste bearer access token"}
           style={{ width: "100%", maxWidth: 520, padding: "8px 10px" }}
         />
       </div>

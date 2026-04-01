@@ -55,11 +55,19 @@ Backend auth is provider-driven through `AUTH_PROVIDER`:
 
 - `dev` (default): accepts `X-Dev-User-Id` header for local testing
 - `supabase`: verifies bearer JWT tokens using Supabase JWKS
+- `oidc`: verifies bearer JWT tokens using generic OIDC JWKS config (AWS/GCP/Azure compatible)
 
 For frontend local dev:
 
 - keep `NEXT_PUBLIC_AUTH_MODE=dev` to test quickly
-- set `NEXT_PUBLIC_AUTH_MODE=supabase` and paste an access token in Workflow Lab to test protected routes
+- set `NEXT_PUBLIC_AUTH_MODE=supabase` or `NEXT_PUBLIC_AUTH_MODE=oidc` and paste an access token in Workflow Lab to test protected routes
+
+For `oidc`, set these backend env values:
+
+- `AUTH_JWKS_URL`
+- `AUTH_JWT_ISSUER`
+- `AUTH_JWT_AUDIENCE` (optional if your provider does not use audience checks)
+- `AUTH_JWT_ALGORITHMS` (comma-separated, defaults to `RS256`)
 
 If your SQLite DB was created before auth columns were added, delete `backend/process_automation.db` and run migrations again.
 

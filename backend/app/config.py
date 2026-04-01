@@ -18,8 +18,10 @@ class Settings(BaseSettings):
     supabase_jwks_url: str = ""
 
     auth_provider: str = "dev"
+    auth_jwks_url: str = ""
     auth_jwt_issuer: str = ""
     auth_jwt_audience: str = "authenticated"
+    auth_jwt_algorithms: str = "RS256"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 
