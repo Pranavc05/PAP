@@ -1,14 +1,23 @@
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth import AuthUser, get_current_user
 from app.db import get_db
-from app.entities import WorkflowEntity
+from app.entities import CourseEntity, LessonEntity, ModuleEntity, UserLessonProgressEntity, WorkflowEntity
 from app.models import (
+    CourseDetail,
+    CourseOverview,
+    CourseProgressResponse,
+    LessonCompletionRequest,
+    LessonDetail,
+    LessonOverview,
+    LessonProgressItem,
     LevelOverview,
+    ModuleOverview,
     StarterProject,
     WorkflowAnalysis,
     WorkflowDiagram,
@@ -55,6 +64,200 @@ def list_starter_projects() -> list[StarterProject]:
             first_step="Document all systems and handoff points in the current process.",
         ),
     ]
+
+
+@router.get("/courses", response_model=list[CourseOverview])
+def list_courses(db: Session = Depends(get_db)) -> list[CourseOverview]:
+    course_rows = db.execute(select(CourseEntity).order_by(CourseEntity.level.asc())).scalars().all()
+    module_counts = dict(
+        db.execute(
+            select(ModuleEntity.course_id, func.count(ModuleEntity.id)).group_by(ModuleEntity.course_id)
+        ).all()
+    )
+    lesson_counts = dict(
+        db.execute(
+            select(ModuleEntity.course_id, func.count(LessonEntity.id))
+            .join(LessonEntity, LessonEntity.module_id == ModuleEntity.id)
+            .group_by(ModuleEntity.course_id)
+        ).all()
+    )
+
+    return [
+        CourseOverview(
+            id=course.id,
+            slug=course.slug,
+            title=course.title,
+            description=course.description,
+            level=course.level,
+            module_count=int(module_counts.get(course.id, 0)),
+            lesson_count=int(lesson_counts.get(course.id, 0)),
+        )
+        for course in course_rows
+    ]
+
+
+@router.get("/courses/{course_id}", response_model=CourseDetail)
+def get_course(course_id: str, db: Session = Depends(get_db)) -> CourseDetail:
+    course = db.get(CourseEntity, course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    module_rows = db.execute(
+        select(ModuleEntity).where(ModuleEntity.course_id == course_id).order_by(ModuleEntity.position.asc())
+    ).scalars().all()
+    module_ids = [module.id for module in module_rows]
+    lesson_rows = (
+        db.execute(
+            select(LessonEntity)
+            .where(LessonEntity.module_id.in_(module_ids))
+            .order_by(LessonEntity.module_id.asc(), LessonEntity.position.asc())
+        ).scalars().all()
+        if module_ids
+        else []
+    )
+
+    lessons_by_module: dict[str, list[LessonOverview]] = {module_id: [] for module_id in module_ids}
+    for lesson in lesson_rows:
+        lessons_by_module.setdefault(lesson.module_id, []).append(
+            LessonOverview(
+                id=lesson.id,
+                title=lesson.title,
+                objective=lesson.objective,
+                position=lesson.position,
+            )
+        )
+
+    modules = [
+        ModuleOverview(
+            id=module.id,
+            title=module.title,
+            description=module.description,
+            position=module.position,
+            lessons=lessons_by_module.get(module.id, []),
+        )
+        for module in module_rows
+    ]
+
+    return CourseDetail(
+        id=course.id,
+        slug=course.slug,
+        title=course.title,
+        description=course.description,
+        level=course.level,
+        modules=modules,
+    )
+
+
+@router.get("/lessons/{lesson_id}", response_model=LessonDetail)
+def get_lesson(lesson_id: str, db: Session = Depends(get_db)) -> LessonDetail:
+    lesson = db.get(LessonEntity, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    return LessonDetail(
+        id=lesson.id,
+        module_id=lesson.module_id,
+        title=lesson.title,
+        objective=lesson.objective,
+        content_markdown=lesson.content_markdown,
+        position=lesson.position,
+    )
+
+
+@router.post("/lessons/{lesson_id}/complete", response_model=LessonProgressItem)
+def mark_lesson_complete(
+    lesson_id: str,
+    payload: LessonCompletionRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> LessonProgressItem:
+    lesson = db.get(LessonEntity, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    progress = db.execute(
+        select(UserLessonProgressEntity).where(
+            UserLessonProgressEntity.user_id == current_user.user_id,
+            UserLessonProgressEntity.lesson_id == lesson_id,
+        )
+    ).scalar_one_or_none()
+
+    if progress is None:
+        progress = UserLessonProgressEntity(
+            user_id=current_user.user_id,
+            lesson_id=lesson_id,
+            completed=payload.completed,
+            score=payload.score,
+        )
+        db.add(progress)
+    else:
+        progress.completed = payload.completed
+        progress.score = payload.score
+
+    if payload.completed:
+        progress.completed_at = datetime.now(timezone.utc)
+    else:
+        progress.completed_at = None
+
+    db.commit()
+    db.refresh(progress)
+    return LessonProgressItem(
+        lesson_id=progress.lesson_id,
+        completed=progress.completed,
+        score=progress.score,
+        completed_at=progress.completed_at.isoformat() if progress.completed_at else None,
+    )
+
+
+@router.get("/courses/{course_id}/progress", response_model=CourseProgressResponse)
+def get_course_progress(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> CourseProgressResponse:
+    course = db.get(CourseEntity, course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    lesson_ids = [
+        row[0]
+        for row in db.execute(
+            select(LessonEntity.id)
+            .join(ModuleEntity, ModuleEntity.id == LessonEntity.module_id)
+            .where(ModuleEntity.course_id == course_id)
+        ).all()
+    ]
+    total_lessons = len(lesson_ids)
+
+    progress_rows = (
+        db.execute(
+            select(UserLessonProgressEntity).where(
+                UserLessonProgressEntity.user_id == current_user.user_id,
+                UserLessonProgressEntity.lesson_id.in_(lesson_ids),
+            )
+        ).scalars().all()
+        if lesson_ids
+        else []
+    )
+    completed_lessons = sum(1 for row in progress_rows if row.completed)
+    percentage = (completed_lessons / total_lessons * 100) if total_lessons else 0.0
+
+    items = [
+        LessonProgressItem(
+            lesson_id=row.lesson_id,
+            completed=row.completed,
+            score=row.score,
+            completed_at=row.completed_at.isoformat() if row.completed_at else None,
+        )
+        for row in progress_rows
+    ]
+
+    return CourseProgressResponse(
+        course_id=course_id,
+        total_lessons=total_lessons,
+        completed_lessons=completed_lessons,
+        completion_percentage=round(percentage, 2),
+        items=items,
+    )
 
 
 @router.post("/workflows", response_model=WorkflowDiagram)

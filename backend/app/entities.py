@@ -1,4 +1,6 @@
-from sqlalchemy import JSON, String
+from datetime import datetime
+
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -12,3 +14,49 @@ class WorkflowEntity(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     nodes: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
     edges: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
+
+
+class CourseEntity(Base):
+    __tablename__ = "courses"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    slug: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    level: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+
+class ModuleEntity(Base):
+    __tablename__ = "modules"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), index=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class LessonEntity(Base):
+    __tablename__ = "lessons"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    module_id: Mapped[str] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"), index=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    content_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class UserLessonProgressEntity(Base):
+    __tablename__ = "user_lesson_progress"
+    __table_args__ = (UniqueConstraint("user_id", "lesson_id", name="uq_user_lesson_progress_user_lesson"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True)
+    completed: Mapped[bool] = mapped_column(nullable=False, default=False)
+    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
