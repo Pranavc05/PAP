@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth";
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/learn", label: "Learning Path" },
+  { href: "/projects", label: "Projects" },
   { href: "/workflows", label: "Workflow Lab" },
   { href: "/tutor", label: "AI Tutor" }
 ];

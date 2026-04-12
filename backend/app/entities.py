@@ -113,3 +113,37 @@ class TutorMessageEntity(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     hint_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ProjectTemplateEntity(Base):
+    __tablename__ = "project_templates"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    slug: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    difficulty: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    industry: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    problem_statement: Mapped[str] = mapped_column(Text, nullable=False)
+    business_goal: Mapped[str] = mapped_column(Text, nullable=False)
+    rubric: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
+
+
+class ProjectSubmissionEntity(Base):
+    __tablename__ = "project_submissions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    template_id: Mapped[str] = mapped_column(
+        ForeignKey("project_templates.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    current_process: Mapped[str] = mapped_column(Text, nullable=False)
+    proposed_automation: Mapped[str] = mapped_column(Text, nullable=False)
+    success_metrics: Mapped[str] = mapped_column(Text, nullable=False)
+    risk_controls: Mapped[str] = mapped_column(Text, nullable=False)
+    review_feedback: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    portfolio_artifacts: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )

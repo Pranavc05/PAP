@@ -208,3 +208,69 @@ class TutorGenerateRequest(BaseModel):
     lesson_context: str | None = None
     mode: str = "socratic"
     hint_level: int = 1
+
+
+class ProjectTemplateSummary(BaseModel):
+    id: str
+    slug: str
+    title: str
+    difficulty: str
+    industry: str
+    business_goal: str
+
+
+class ProjectTemplateDetail(BaseModel):
+    id: str
+    slug: str
+    title: str
+    difficulty: str
+    industry: str
+    problem_statement: str
+    business_goal: str
+    rubric: list[dict]
+
+
+class ProjectSubmissionCreateRequest(BaseModel):
+    template_id: str
+    title: str
+    current_process: str
+    proposed_automation: str
+    success_metrics: str
+    risk_controls: str
+
+
+class ProjectSubmissionOverview(BaseModel):
+    id: str
+    template_id: str
+    template_title: str
+    title: str
+    created_at: str
+    updated_at: str
+
+
+class ProjectSubmissionDetail(BaseModel):
+    id: str
+    template_id: str
+    template_title: str
+    title: str
+    current_process: str
+    proposed_automation: str
+    success_metrics: str
+    risk_controls: str
+    review_feedback: dict | None
+    portfolio_artifacts: dict | None
+    created_at: str
+    updated_at: str
+
+
+class ProjectReviewResponse(BaseModel):
+    rubric_scores: dict
+    summary: str
+    improvement_actions: list[str]
+
+
+class ProjectArtifactsResponse(BaseModel):
+    resume_bullets: list[str]
+    linkedin_post: str
+    project_summary: str
+    architecture_overview: str

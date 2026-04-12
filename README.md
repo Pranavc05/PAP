@@ -120,6 +120,13 @@ Frontend should run on `http://localhost:3000` and call backend APIs at `http://
 - `GET /api/v1/tutor/sessions`
 - `GET /api/v1/tutor/sessions/{session_id}`
 - `POST /api/v1/tutor/sessions/{session_id}/messages`
+- `GET /api/v1/project-templates`
+- `GET /api/v1/project-templates/{template_id}`
+- `POST /api/v1/project-submissions`
+- `GET /api/v1/project-submissions`
+- `GET /api/v1/project-submissions/{submission_id}`
+- `POST /api/v1/project-submissions/{submission_id}/review`
+- `POST /api/v1/project-submissions/{submission_id}/artifacts`
 
 ## Repository structure
 

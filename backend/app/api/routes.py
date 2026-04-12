@@ -11,6 +11,8 @@ from app.entities import (
     CourseEntity,
     LessonEntity,
     ModuleEntity,
+    ProjectSubmissionEntity,
+    ProjectTemplateEntity,
     QuizAttemptEntity,
     QuizQuestionEntity,
     TutorMessageEntity,
@@ -35,6 +37,13 @@ from app.models import (
     QuizResultItem,
     QuizSubmitRequest,
     QuizSubmitResponse,
+    ProjectArtifactsResponse,
+    ProjectReviewResponse,
+    ProjectSubmissionCreateRequest,
+    ProjectSubmissionDetail,
+    ProjectSubmissionOverview,
+    ProjectTemplateDetail,
+    ProjectTemplateSummary,
     StarterProject,
     TutorGenerateRequest,
     TutorMessage,
@@ -47,6 +56,7 @@ from app.models import (
     WorkflowDiagram,
     WorkflowSaveRequest,
 )
+from app.project_ai import generate_portfolio_artifacts, generate_project_review
 from app.tutor_engine import generate_tutor_response
 
 router = APIRouter(prefix="/api/v1", tags=["mvp"])
@@ -562,6 +572,213 @@ def send_tutor_message(
             hint_level=assistant_message_entity.hint_level,
             created_at=assistant_message_entity.created_at.isoformat(),
         ),
+    )
+
+
+@router.get("/project-templates", response_model=list[ProjectTemplateSummary])
+def list_project_templates(db: Session = Depends(get_db)) -> list[ProjectTemplateSummary]:
+    templates = db.execute(select(ProjectTemplateEntity).order_by(ProjectTemplateEntity.difficulty.asc())).scalars().all()
+    return [
+        ProjectTemplateSummary(
+            id=item.id,
+            slug=item.slug,
+            title=item.title,
+            difficulty=item.difficulty,
+            industry=item.industry,
+            business_goal=item.business_goal,
+        )
+        for item in templates
+    ]
+
+
+@router.get("/project-templates/{template_id}", response_model=ProjectTemplateDetail)
+def get_project_template(template_id: str, db: Session = Depends(get_db)) -> ProjectTemplateDetail:
+    template = db.get(ProjectTemplateEntity, template_id)
+    if template is None:
+        raise HTTPException(status_code=404, detail="Project template not found")
+    return ProjectTemplateDetail(
+        id=template.id,
+        slug=template.slug,
+        title=template.title,
+        difficulty=template.difficulty,
+        industry=template.industry,
+        problem_statement=template.problem_statement,
+        business_goal=template.business_goal,
+        rubric=template.rubric,
+    )
+
+
+@router.post("/project-submissions", response_model=ProjectSubmissionDetail)
+def create_project_submission(
+    payload: ProjectSubmissionCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> ProjectSubmissionDetail:
+    template = db.get(ProjectTemplateEntity, payload.template_id)
+    if template is None:
+        raise HTTPException(status_code=404, detail="Project template not found")
+
+    submission = ProjectSubmissionEntity(
+        id=str(uuid4()),
+        user_id=current_user.user_id,
+        template_id=payload.template_id,
+        title=payload.title,
+        current_process=payload.current_process,
+        proposed_automation=payload.proposed_automation,
+        success_metrics=payload.success_metrics,
+        risk_controls=payload.risk_controls,
+    )
+    db.add(submission)
+    db.commit()
+    db.refresh(submission)
+    return ProjectSubmissionDetail(
+        id=submission.id,
+        template_id=submission.template_id,
+        template_title=template.title,
+        title=submission.title,
+        current_process=submission.current_process,
+        proposed_automation=submission.proposed_automation,
+        success_metrics=submission.success_metrics,
+        risk_controls=submission.risk_controls,
+        review_feedback=submission.review_feedback,
+        portfolio_artifacts=submission.portfolio_artifacts,
+        created_at=submission.created_at.isoformat(),
+        updated_at=submission.updated_at.isoformat(),
+    )
+
+
+@router.get("/project-submissions", response_model=list[ProjectSubmissionOverview])
+def list_project_submissions(
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> list[ProjectSubmissionOverview]:
+    submissions = db.execute(
+        select(ProjectSubmissionEntity)
+        .where(ProjectSubmissionEntity.user_id == current_user.user_id)
+        .order_by(ProjectSubmissionEntity.updated_at.desc())
+    ).scalars().all()
+    template_map = {
+        item.id: item.title for item in db.execute(select(ProjectTemplateEntity)).scalars().all()
+    }
+    return [
+        ProjectSubmissionOverview(
+            id=submission.id,
+            template_id=submission.template_id,
+            template_title=template_map.get(submission.template_id, "Unknown template"),
+            title=submission.title,
+            created_at=submission.created_at.isoformat(),
+            updated_at=submission.updated_at.isoformat(),
+        )
+        for submission in submissions
+    ]
+
+
+@router.get("/project-submissions/{submission_id}", response_model=ProjectSubmissionDetail)
+def get_project_submission(
+    submission_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> ProjectSubmissionDetail:
+    submission = db.execute(
+        select(ProjectSubmissionEntity).where(
+            ProjectSubmissionEntity.id == submission_id,
+            ProjectSubmissionEntity.user_id == current_user.user_id,
+        )
+    ).scalar_one_or_none()
+    if submission is None:
+        raise HTTPException(status_code=404, detail="Project submission not found")
+    template = db.get(ProjectTemplateEntity, submission.template_id)
+    return ProjectSubmissionDetail(
+        id=submission.id,
+        template_id=submission.template_id,
+        template_title=template.title if template else "Unknown template",
+        title=submission.title,
+        current_process=submission.current_process,
+        proposed_automation=submission.proposed_automation,
+        success_metrics=submission.success_metrics,
+        risk_controls=submission.risk_controls,
+        review_feedback=submission.review_feedback,
+        portfolio_artifacts=submission.portfolio_artifacts,
+        created_at=submission.created_at.isoformat(),
+        updated_at=submission.updated_at.isoformat(),
+    )
+
+
+@router.post("/project-submissions/{submission_id}/review", response_model=ProjectReviewResponse)
+def review_project_submission(
+    submission_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> ProjectReviewResponse:
+    submission = db.execute(
+        select(ProjectSubmissionEntity).where(
+            ProjectSubmissionEntity.id == submission_id,
+            ProjectSubmissionEntity.user_id == current_user.user_id,
+        )
+    ).scalar_one_or_none()
+    if submission is None:
+        raise HTTPException(status_code=404, detail="Project submission not found")
+    template = db.get(ProjectTemplateEntity, submission.template_id)
+    review = generate_project_review(
+        {
+            "template_title": template.title if template else "",
+            "problem_statement": template.problem_statement if template else "",
+            "business_goal": template.business_goal if template else "",
+            "rubric": template.rubric if template else [],
+            "submission": {
+                "title": submission.title,
+                "current_process": submission.current_process,
+                "proposed_automation": submission.proposed_automation,
+                "success_metrics": submission.success_metrics,
+                "risk_controls": submission.risk_controls,
+            },
+        }
+    )
+    submission.review_feedback = review
+    db.commit()
+    db.refresh(submission)
+    return ProjectReviewResponse(
+        rubric_scores=review.get("rubric_scores", {}),
+        summary=review.get("summary", ""),
+        improvement_actions=review.get("improvement_actions", []),
+    )
+
+
+@router.post("/project-submissions/{submission_id}/artifacts", response_model=ProjectArtifactsResponse)
+def generate_submission_artifacts(
+    submission_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user),
+) -> ProjectArtifactsResponse:
+    submission = db.execute(
+        select(ProjectSubmissionEntity).where(
+            ProjectSubmissionEntity.id == submission_id,
+            ProjectSubmissionEntity.user_id == current_user.user_id,
+        )
+    ).scalar_one_or_none()
+    if submission is None:
+        raise HTTPException(status_code=404, detail="Project submission not found")
+    template = db.get(ProjectTemplateEntity, submission.template_id)
+    artifacts = generate_portfolio_artifacts(
+        {
+            "template_title": template.title if template else "",
+            "industry": template.industry if template else "",
+            "title": submission.title,
+            "current_process": submission.current_process,
+            "proposed_automation": submission.proposed_automation,
+            "success_metrics": submission.success_metrics,
+            "risk_controls": submission.risk_controls,
+            "review_feedback": submission.review_feedback,
+        }
+    )
+    submission.portfolio_artifacts = artifacts
+    db.commit()
+    db.refresh(submission)
+    return ProjectArtifactsResponse(
+        resume_bullets=artifacts.get("resume_bullets", []),
+        linkedin_post=artifacts.get("linkedin_post", ""),
+        project_summary=artifacts.get("project_summary", ""),
+        architecture_overview=artifacts.get("architecture_overview", ""),
     )
 
 
